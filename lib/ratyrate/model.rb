@@ -12,8 +12,10 @@ module Ratyrate
       end
       if dirichlet_method
         update_rate_average_dirichlet(stars, dimension)
+        update_overall_average
       else
         update_rate_average(stars, dimension)
+        update_overall_average
       end
     else
       update_current_rate(stars, user, dimension)
@@ -56,14 +58,16 @@ module Ratyrate
 
     if rates(dimension).count > 1
       update_rate_average(stars, dimension)
+      update_overall_average
     else # Set the avarage to the exact number of stars
       a = average(dimension)
       a.avg = stars
       a.save!(validate: false)
+      update_overall_average
     end
   end
 
-  def overall_avg(user)
+  #def overall_avg
     # avg = OverallAverage.where(rateable_id: self.id)
     # #FIXME: Fix the bug when the movie has no ratings
     # unless avg.empty?
@@ -84,12 +88,22 @@ module Ratyrate
     #   end
     #   overall_avg
     # end
+  #end
+
+  def get_overall_avg
+    OverallAverage.where(rateable_type: self.class.name, rateable_id: self.id).try(:first).try(:overall_avg)
   end
 
   # calculates the movie overall average rating for all users
   def calculate_overall_average
-    rating = Rate.where(rateable: self).pluck('stars')
-    (rating.reduce(:+).to_f / rating.size).round(1)
+    values = RatingCache.where(cacheable_id: self.id).pluck(:avg, :qty)
+    qty = values.map { |pair| pair[1] }.sum
+    value_sum = values.map { |pair| pair[0] * pair[1] }.sum
+    value_sum/qty
+  end
+
+  def update_overall_average
+    OverallAverage.create_with(overall_avg: calculate_overall_average, rateable_type: self.class.name).find_or_create_by(rateable_id: self.id).update_attributes(overall_avg: calculate_overall_average)
   end
 
   def average(dimension=nil)
@@ -123,20 +137,20 @@ module Ratyrate
       has_many :raters_without_dimension, through: :rates_without_dimension, source: :rater
 
       has_one :rate_average_without_dimension, -> { where dimension: nil}, as: :cacheable,
-              class_name: 'RatingCache', dependent: :destroy
+        class_name: 'RatingCache', dependent: :destroy
 
       dimensions.each do |dimension|
         has_many "#{dimension}_rates".to_sym, -> {where dimension: dimension.to_s},
-                                              dependent: :destroy,
-                                              class_name: 'Rate',
-                                              as: :rateable
+          dependent: :destroy,
+          class_name: 'Rate',
+          as: :rateable
 
         has_many "#{dimension}_raters".to_sym, through: :"#{dimension}_rates", source: :rater
 
         has_one "#{dimension}_average".to_sym, -> { where dimension: dimension.to_s },
-                                              as: :cacheable, 
-                                              class_name: 'RatingCache',
-                                              dependent: :destroy
+          as: :cacheable,
+          class_name: 'RatingCache',
+          dependent: :destroy
       end
     end
   end
