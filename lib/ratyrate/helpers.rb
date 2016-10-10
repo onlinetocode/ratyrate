@@ -77,7 +77,7 @@ module Helpers
     star         = options[:star]         || 5
     enable_half  = options[:enable_half]  || false
     half_show    = options[:half_show]    || true
-    star_path    = options[:star_path]    || '/assets'
+    star_path    = options[:star_path]    || ''
     star_on      = options[:star_on]      || image_path('star-on.png')
     star_off     = options[:star_off]     || image_path('star-off.png')
     star_half    = options[:star_half]    || image_path('star-half.png')
